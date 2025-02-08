@@ -1,0 +1,11 @@
+memory_usage(MiB),tag,avg_memory_usage(MiB),std_memory_usage(MiB)
+146.4375,small_data_lag_1_max_lag_5,130.1,22.894069351216995
+146.5,small_data_lag_1_max_lag_5,130.1,22.894069351216995
+146.65625,small_data_lag_1_max_lag_5,130.1,22.894069351216995
+146.65625,small_data_lag_1_max_lag_5,130.1,22.894069351216995
+130.109375,small_data_lag_1_max_lag_5,130.1,22.894069351216995
+128.734375,small_data_lag_1_max_lag_5,130.1,22.894069351216995
+128.65625,small_data_lag_1_max_lag_5,130.1,22.894069351216995
+128.671875,small_data_lag_1_max_lag_5,130.1,22.894069351216995
+128.6875,small_data_lag_1_max_lag_5,130.1,22.894069351216995
+69.890625,small_data_lag_1_max_lag_5,130.1,22.894069351216995
