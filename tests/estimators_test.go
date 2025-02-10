@@ -27,6 +27,16 @@ func TestAREstimatorNonNullModelData(t *testing.T) {
 
 }
 
+func TestAREstimatorRSSNonNegative(t *testing.T) {
+	lag := 5
+	ts := []float64{0.5, -0.14, 0.65, 1.52, -0.23, -0.23, 1.58, 0.77, -0.47, 0.54, -0.46, -0.47, 0.24, -1.91}
+	res := estimator.CreateXY(ts, lag)
+	regRes := estimator.ARfit(res)
+	if *regRes.RSS < 0 {
+		t.Error("RSS can't be negative")
+	}
+
+}
 func TestAREstimator2Series(t *testing.T) {
 	seriesX := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	seriesY := []float64{-11, 120, 17, 1, 0, 1, 49, 18, 19, 20}
@@ -51,8 +61,8 @@ func TestAREstimator2Series(t *testing.T) {
 }
 
 func TestBestLagSelection(t *testing.T) {
-	seriesX := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}
-	maxLag := estimator.GetMaxLagDefault(2)
+	seriesX := []float64{0.5, -0.14, 0.65, 1.52, -0.23, -0.23, 1.58, 0.77, -0.47, 0.54, -0.46, -0.47, 0.24, -1.91}
+	maxLag := estimator.GetMaxLagDefault(4)
 	bestLagAIC, bestLagBIC := estimator.SelectBestLag(seriesX, maxLag)
 
 	if bestLagAIC < 0 || bestLagAIC > 4 {
@@ -64,8 +74,8 @@ func TestBestLagSelection(t *testing.T) {
 }
 
 func TestGrangerCausality(t *testing.T) {
-	seriesX := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-	seriesY := []float64{-11, 120, 17, 1, 0, 1, 49, 18, 19, 20}
+	seriesX := []float64{0.5, -0.14, 0.65, 1.52, -0.23, -0.23, 1.58, 0.77, -0.47, 0.54, -0.46, -0.47, 0.24, -1.91}
+	seriesY := []float64{0.55, -0.25, -0.33, 1.57, -2.96, 0.05, -0.22, -1.43, 2.17, 2.18, 1.72, -0.55, 1.3, -2.23}
 	lag := 2
 	result := estimator.GrangerCausality(seriesY, seriesX, lag)
 	if result.FStat_XY_AIC < 0 {

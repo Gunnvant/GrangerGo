@@ -12,6 +12,10 @@ func CreateXY(ts []float64, lag int) *DataU {
 	ncols := lag
 	X := mat.NewDense(nrows, ncols, nil)
 	Y := mat.NewDense(nrows, 1, nil)
+	Ones := mat.NewDense(nrows, 1, make([]float64, nrows))
+	for i := 0; i < nrows; i++ {
+		Ones.Set(i, 0, 1.0)
+	}
 	for i := lag; i < n; i++ {
 		Y.Set(i-lag, 0, ts[i])
 	}
@@ -20,9 +24,14 @@ func CreateXY(ts []float64, lag int) *DataU {
 			X.Set(i, j, ts[i+j])
 		}
 	}
+	rows1, cols1 := Ones.Dims()
+	_, cols2 := X.Dims()
+	combined := mat.NewDense(nrows, cols1+cols2, nil)
+	combined.Slice(0, rows1, 0, cols1).(*mat.Dense).Copy(Ones)
+	combined.Slice(0, rows1, cols1, cols1+cols2).(*mat.Dense).Copy(X)
 	res := &DataU{}
 	res.Lag = lag
-	res.X = X
+	res.X = combined
 	res.Y = Y
 	res.N = n
 	return res
@@ -33,6 +42,10 @@ func CreateXXy(seriesY []float64, seriesX []float64, lag int) *DataU {
 	X1 := mat.NewDense(nrows, lag, nil)
 	X2 := mat.NewDense(nrows, lag, nil)
 	Y := mat.NewDense(nrows, 1, nil)
+	Ones := mat.NewDense(nrows, 1, make([]float64, nrows))
+	for i := 0; i < nrows; i++ {
+		Ones.Set(i, 0, 1.0)
+	}
 	for i := lag; i < n; i++ {
 		Y.Set(i-lag, 0, seriesY[i])
 	}
@@ -48,9 +61,16 @@ func CreateXXy(seriesY []float64, seriesX []float64, lag int) *DataU {
 	}
 	rows1, cols1 := X1.Dims()
 	_, cols2 := X2.Dims()
-	combined := mat.NewDense(rows1, cols1+cols2, nil)
-	combined.Slice(0, rows1, 0, cols1).(*mat.Dense).Copy(X1)
-	combined.Slice(0, rows1, cols1, cols1+cols2).(*mat.Dense).Copy(X2)
+	X3 := mat.NewDense(rows1, cols1+cols2, nil)
+	X3.Slice(0, rows1, 0, cols1).(*mat.Dense).Copy(X1)
+	X3.Slice(0, rows1, cols1, cols1+cols2).(*mat.Dense).Copy(X2)
+
+	rowsOne, colsOne := Ones.Dims()
+	_, cols3 := X3.Dims()
+	combined := mat.NewDense(rowsOne, colsOne+cols3, nil)
+	combined.Slice(0, rowsOne, 0, colsOne).(*mat.Dense).Copy(Ones)
+	combined.Slice(0, rowsOne, colsOne, colsOne+cols3).(*mat.Dense).Copy(X3)
+
 	res := &DataU{}
 	res.Lag = lag
 	res.X = combined
@@ -111,11 +131,16 @@ func SelectBestLag(ts []float64, maxLag int) (int, int) {
 	return bestLagAIC, bestLagBIC
 }
 
-func ComputeFtat(rssRestricted *float64, rssUnrestricted *float64, lag int, n int) float64 {
+func ComputeFstat(rssRestricted *float64, rssUnrestricted *float64, lag int, n int) float64 {
 	df_unrestricted := n - (2*lag + 1)
 	df_restricted := lag
-	result := ((*rssUnrestricted - *rssRestricted) / float64(df_restricted)) / (*rssUnrestricted / float64(df_unrestricted))
-	return result
+	result := ((*rssRestricted - *rssUnrestricted) / float64(df_restricted)) / (*rssUnrestricted / float64(df_unrestricted))
+	if result < 0 {
+		result = result * -1.0
+		return result
+	} else {
+		return result
+	}
 
 }
 func GrangerCausality(seriesY []float64, seriesX []float64, maxLag int) *GrangerResult {
@@ -125,30 +150,30 @@ func GrangerCausality(seriesY []float64, seriesX []float64, maxLag int) *Granger
 	// Get Models for Y on X AIC Criteria
 	resAICYX := CreateXXy(seriesY, seriesX, bestLagAICX)
 	resAICY := CreateXY(seriesY, bestLagAICX)
-	rssUYXAIC := ARfit(resAICY).RSS
-	rssRYXAIC := ARfit(resAICYX).RSS
-	FStatYXAIC := ComputeFtat(rssRYXAIC, rssUYXAIC, bestLagAICX, len(seriesX))
+	rssRYXAIC := ARfit(resAICY).RSS
+	rssUYXAIC := ARfit(resAICYX).RSS
+	FStatYXAIC := ComputeFstat(rssRYXAIC, rssUYXAIC, bestLagAICX, len(seriesX))
 
 	//Get Models Y on X BIC Criteria
 	resBICYX := CreateXXy(seriesY, seriesX, bestLagBICX)
 	resBICY := CreateXY(seriesY, bestLagBICX)
-	rssUYXBIC := ARfit(resBICY).RSS
-	rssRYXBIC := ARfit(resBICYX).RSS
-	FStatYXBIC := ComputeFtat(rssRYXBIC, rssUYXBIC, bestLagBICX, len(seriesX))
+	rssRYXBIC := ARfit(resBICY).RSS
+	rssUYXBIC := ARfit(resBICYX).RSS
+	FStatYXBIC := ComputeFstat(rssRYXBIC, rssUYXBIC, bestLagBICX, len(seriesX))
 
 	//Get Models X on Y AIC Criteria
 	resAICXY := CreateXXy(seriesX, seriesY, bestLagAICY)
 	resAICX := CreateXY(seriesX, bestLagAICY)
-	rssUXYAIC := ARfit(resAICX).RSS
-	rssRXYAIC := ARfit(resAICXY).RSS
-	FStatXYAIC := ComputeFtat(rssUXYAIC, rssRXYAIC, bestLagAICY, len(seriesY))
+	rssRXYAIC := ARfit(resAICX).RSS
+	rssUXYAIC := ARfit(resAICXY).RSS
+	FStatXYAIC := ComputeFstat(rssUXYAIC, rssRXYAIC, bestLagAICY, len(seriesY))
 
 	//Get Models X on Y BIC Criteria
 	resBICXY := CreateXXy(seriesX, seriesY, bestLagBICY)
 	resBICX := CreateXY(seriesX, bestLagBICY)
-	rssUXYBIC := ARfit(resBICX).RSS
-	rssRXYBIC := ARfit(resBICXY).RSS
-	FStatXYBIC := ComputeFtat(rssUXYBIC, rssRXYBIC, bestLagBICY, len(seriesX))
+	rssRXYBIC := ARfit(resBICX).RSS
+	rssUXYBIC := ARfit(resBICXY).RSS
+	FStatXYBIC := ComputeFstat(rssUXYBIC, rssRXYBIC, bestLagBICY, len(seriesX))
 
 	result := GrangerResult{}
 	result.FStat_YX_AIC = FStatYXAIC
