@@ -2,6 +2,7 @@ package estimator
 
 import (
 	"math"
+	"sync"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -111,6 +112,37 @@ func ARfit(d *DataU) *ARModel {
 func GetMaxLagDefault(maxLag int) int {
 	return maxLag
 }
+func GetAicBic(ts []float64, chRes chan AicBic, wg *sync.WaitGroup, lag int) {
+	res := CreateXY(ts, lag)
+	regRes := ARfit(res)
+	chRes <- AicBic{AIC: *regRes.AIC, BIC: *regRes.BIC, AicLag: lag, BicLag: lag}
+	wg.Done()
+
+}
+func SelectBestLagParallel(ts []float64, maxLag int) (int, int) {
+	bestAIC, bestBIC := math.Inf(1), math.Inf(1)
+	bestLagAIC, bestLagBIC := 1, 1
+	chRes := make(chan AicBic, maxLag)
+	wg := sync.WaitGroup{}
+	for lag := 1; lag <= maxLag; lag++ {
+		wg.Add(1)
+		go GetAicBic(ts, chRes, &wg, lag)
+	}
+	wg.Wait()
+	close(chRes)
+	for res := range chRes {
+		if res.AIC < bestAIC {
+			bestAIC = res.AIC
+			bestLagAIC = res.AicLag
+		}
+		if res.BIC < bestBIC {
+			bestBIC = res.BIC
+			bestLagBIC = res.BicLag
+		}
+	}
+
+	return bestLagAIC, bestLagBIC
+}
 
 func SelectBestLag(ts []float64, maxLag int) (int, int) {
 	bestAIC, bestBIC := math.Inf(1), math.Inf(1)
@@ -182,4 +214,44 @@ func GrangerCausality(seriesY []float64, seriesX []float64, maxLag int) *Granger
 	result.FStat_XY_BIC = FStatXYBIC
 	return &result
 
+}
+
+func GrangerCausalityParallel(seriesY []float64, seriesX []float64, maxLag int) *GrangerResult {
+	bestLagAICY, bestLagBICY := SelectBestLagParallel(seriesY, maxLag)
+	bestLagAICX, bestLagBICX := SelectBestLagParallel(seriesX, maxLag)
+
+	// Get Models for Y on X AIC Criteria
+	resAICYX := CreateXXy(seriesY, seriesX, bestLagAICX)
+	resAICY := CreateXY(seriesY, bestLagAICX)
+	rssRYXAIC := ARfit(resAICY).RSS
+	rssUYXAIC := ARfit(resAICYX).RSS
+	FStatYXAIC := ComputeFstat(rssRYXAIC, rssUYXAIC, bestLagAICX, len(seriesX))
+
+	//Get Models Y on X BIC Criteria
+	resBICYX := CreateXXy(seriesY, seriesX, bestLagBICX)
+	resBICY := CreateXY(seriesY, bestLagBICX)
+	rssRYXBIC := ARfit(resBICY).RSS
+	rssUYXBIC := ARfit(resBICYX).RSS
+	FStatYXBIC := ComputeFstat(rssRYXBIC, rssUYXBIC, bestLagBICX, len(seriesX))
+
+	//Get Models X on Y AIC Criteria
+	resAICXY := CreateXXy(seriesX, seriesY, bestLagAICY)
+	resAICX := CreateXY(seriesX, bestLagAICY)
+	rssRXYAIC := ARfit(resAICX).RSS
+	rssUXYAIC := ARfit(resAICXY).RSS
+	FStatXYAIC := ComputeFstat(rssUXYAIC, rssRXYAIC, bestLagAICY, len(seriesY))
+
+	//Get Models X on Y BIC Criteria
+	resBICXY := CreateXXy(seriesX, seriesY, bestLagBICY)
+	resBICX := CreateXY(seriesX, bestLagBICY)
+	rssRXYBIC := ARfit(resBICX).RSS
+	rssUXYBIC := ARfit(resBICXY).RSS
+	FStatXYBIC := ComputeFstat(rssUXYBIC, rssRXYBIC, bestLagBICY, len(seriesX))
+
+	result := GrangerResult{}
+	result.FStat_YX_AIC = FStatYXAIC
+	result.FStat_YX_BIC = FStatYXBIC
+	result.FStat_XY_AIC = FStatXYAIC
+	result.FStat_XY_BIC = FStatXYBIC
+	return &result
 }

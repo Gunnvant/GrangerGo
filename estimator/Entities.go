@@ -14,7 +14,12 @@ type ARModel struct {
 	Coeff *mat.Dense
 	RSS   *float64
 }
-
+type AicBic struct {
+	AIC    float64
+	BIC    float64
+	AicLag int
+	BicLag int
+}
 type GrangerResult struct {
 	FStat_XY_AIC float64
 	FStat_XY_BIC float64
